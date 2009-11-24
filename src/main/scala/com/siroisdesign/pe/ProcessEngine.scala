@@ -18,14 +18,16 @@ package pe {
   class ProcessEngine(private[pe] val executor:Executor) {
     def this() = this(ProcessEngine)
 
-    type delayed1[I, O] = (() => I) => () => O
-    
+    private[ProcessEngine] type delayed[T] = () => T
+
+    private[ProcessEngine] type delayed1[I, O] = delayed[I] => delayed[O]
+
     class Binder[I, O](private[ProcessEngine] val function:delayed1[I, O]) {
       def <=(producer: => I) = function(executor <= producer)
       def <~(producer: => I) = function(executor <~ producer)
     }
 
-    type delayed2[I1, I2, O] = (() => I1) => delayed1[I2, O]
+    private[ProcessEngine] type delayed2[I1, I2, O] = delayed[I1] => delayed1[I2, O]
 
     class Binder2[I1, I2, O](private[ProcessEngine] val function:delayed2[I1, I2, O]) {
       def <=(producer: => I1) = new Binder[I2, O](function(executor <= producer))
@@ -33,14 +35,33 @@ package pe {
     }
 
     /**
-     * Schedules execution of {@code function} with arguments bound by synchronously or asynchronously using the
+     * Schedules execution of {@code function} with 2 arguments bound by synchronously or asynchronously using the
      * returned {@link Binder2}.
      */
     def ~>:[I1, I2, O](function:(I1, I2) => O) = {
-      def delayedFunction(input1:() => I1) = {
-        (input2:() => I2) => () => function(input1(), input2())
-      }
+      def delayedFunction(input1:delayed[I1]) =
+        (input2:delayed[I2]) =>
+                () => function(input1(), input2())
       new Binder2[I1, I2, O](delayedFunction)
+    }
+
+    private[ProcessEngine] type delayed3[I1, I2, I3, O] = delayed[I1] => delayed2[I2, I3, O]
+
+    class Binder3[I1, I2, I3, O](private[ProcessEngine] val function:delayed3[I1, I2, I3, O]) {
+      def <=(producer: => I1) = new Binder2[I2, I3, O](function(executor <= producer))
+      def <~(producer: => I1) = new Binder2[I2, I3, O](function(executor <~ producer))
+    }
+
+    /**
+     * Schedules execution of {@code function} with 3 arguments bound by synchronously or asynchronously using the
+     * returned {@link Binder3}.
+     */
+    def ~>:[I1, I2, I3, O](function:(I1, I2, I3) => O) = {
+      def delayedFunction(input1:delayed[I1]) =
+        (input2:delayed[I2]) =>
+                (input3:delayed[I3]) =>
+                        () => function(input1(), input2(), input3())
+      new Binder3[I1, I2, I3, O](delayedFunction)
     }
   }
 

@@ -15,20 +15,20 @@ class ProcessEngineTest extends FunSuite {
     })
     
     val result =
-        ((prefix:String, suffix:String) => {
+        ((prefix:String, message:String, suffix:String) => {
           LOG.info("executing user-supplied function with prefix: " + prefix + " suffix:" + suffix)
-          prefix + suffix
+          prefix + message + suffix
         }) ~>: processEngine <~ {
           LOG.info("Retuning joe immediately")
           "joe"
-        } <~ {
+        } <= "Hello World!" <~ {
           LOG.info("About to sleep before calculating jake...")
           Thread.sleep(100)
           LOG.info("...woke up to return jake")
           "jake"
         }
 
-    expect("joejake") {
+    expect("joeHello World!jake") {
       result()
     }
 
