@@ -15,10 +15,10 @@ package pe {
     private[pe] def <~[O](producer: => O) : () => O
   }
 
-  class ProcessEngine(private[pe] executor:Executor) {
+  class ProcessEngine(private[pe] val executor:Executor) {
     def this() = this(ProcessEngine)
 
-    class Binder[S, O](private[ProcessEngine] function:(() => S) => () => O) {
+    class Binder[S, O](private[ProcessEngine] val function:(() => S) => () => O) {
       def <=(producer: => S) = {
         function(executor <= producer)
       }
@@ -28,7 +28,7 @@ package pe {
       }
     }
 
-    class Binder2[S, T, O](private[ProcessEngine] function:(() => S) => (() => T) => () => O) {
+    class Binder2[S, T, O](private[ProcessEngine] val function:(() => S) => (() => T) => () => O) {
       def <=(producer: => S) = {
         new Binder[T, O](function(executor <= producer))
       }
