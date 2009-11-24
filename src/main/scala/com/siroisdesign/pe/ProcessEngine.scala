@@ -18,29 +18,25 @@ package pe {
   class ProcessEngine(private[pe] val executor:Executor) {
     def this() = this(ProcessEngine)
 
-    class Binder[S, O](private[ProcessEngine] val function:(() => S) => () => O) {
-      def <=(producer: => S) = {
-        function(executor <= producer)
-      }
-
-      def <~(producer: => S) = {
-        function(executor <~ producer)
-      }
+    type delayed1[I, O] = (() => I) => () => O
+    
+    class Binder[I, O](private[ProcessEngine] val function:delayed1[I, O]) {
+      def <=(producer: => I) = function(executor <= producer)
+      def <~(producer: => I) = function(executor <~ producer)
     }
 
-    class Binder2[S, T, O](private[ProcessEngine] val function:(() => S) => (() => T) => () => O) {
-      def <=(producer: => S) = {
-        new Binder[T, O](function(executor <= producer))
-      }
+    type delayed2[I1, I2, O] = (() => I1) => delayed1[I2, O]
 
-      def <~(producer: => S) = {
-        new Binder[T, O](function(executor <~ producer))
-      }
+    class Binder2[I1, I2, O](private[ProcessEngine] val function:delayed2[I1, I2, O]) {
+      def <=(producer: => I1) = new Binder[I2, O](function(executor <= producer))
+      def <~(producer: => I1) = new Binder[I2, O](function(executor <~ producer))
     }
 
-    def ~>: [I1, I2, O](function:(I1, I2) => O) = this ~> function
-
-    def ~>[I1, I2, O](function:(I1, I2) => O) = {
+    /**
+     * Schedules execution of {@code function} with arguments bound by synchronously or asynchronously using the
+     * returned {@link Binder2}.
+     */
+    def ~>:[I1, I2, O](function:(I1, I2) => O) = {
       def delayedFunction(input1:() => I1) = {
         (input2:() => I2) => () => function(input1(), input2())
       }
@@ -56,12 +52,10 @@ package pe {
       case _ => throw new IllegalStateException
     }
 
-    private class ScalaCallable[T](callable:() => T) extends Callable[T] {
-      override def call() = callable()
-    }
-    
     private[pe] def <~[O](producer: => O) = {
-      val future = executor.submit(new ScalaCallable(() => producer))
+      val future = executor.submit(new Callable[O] {
+        def call = producer
+      })
       () => future.get
     }
   }
