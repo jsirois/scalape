@@ -41,16 +41,70 @@ class ProcessEngine {
 }
 
 object ProcessEngine {
-  private class ScalaCallable[T](callable:(() => T)) extends Callable[T] {
-    override def call() : T = {
-      callable.apply  
-    }
+  private class ScalaCallable[T](callable:() => T) extends Callable[T] {
+    override def call() = callable()
   }
 
   // TODO(jsirois): must be a way to define execute signature to accept by name directly - clean this up
   implicit def byName2byValue[T](function: => T) = () => function
+
+  def callable[T] (supplier:() => T) : Callable[T] = new ScalaCallable(supplier)
+}
+
+trait Executor {
   
-  def callable[T] (callable:() => T) : Callable[T] = {
-    new ScalaCallable(callable)
+  /**
+   * Synchronously calculates and assigns a value.
+   */
+  sealed def <=[O](producer: => O) = () => producer
+
+  /**
+   * Schedules asynchronously calculation of a value and returns a function that will block on the result.
+   */
+  def <~[O](producer: => O) : () => O
+}
+
+class PE(executor:Executor) {
+  def this() = this(PE)
+
+  class Binder[S, O](function:(() => S) => () => O) {
+    def <=(producer: => S) = {
+      function(executor <= producer)
+    }
+
+    def <~(producer: => S) = {
+      function(executor <~ producer)
+    }
+  }
+
+  class Binder2[S, T, O](function:(() => S) => (() => T) => () => O) {
+    def <=(producer: => S) = {
+      new Binder[T, O](function(executor <= producer))
+    }
+
+    def <~(producer: => S) = {
+      new Binder[T, O](function(executor <~ producer))
+    }
+  }
+
+  def ~>[I1, I2, O](function:(I1, I2) => O) = {
+    def delayedFunction(input1:() => I1) = {
+      (input2:() => I2) => () => function(input1(), input2())
+    }
+    new Binder2[I1, I2, O](delayedFunction)
+  }
+}
+
+object PE extends Executor {
+  import ProcessEngine.byName2byValue // enable implicit conversion
+
+  lazy val executor:ThreadPoolExecutor = Executors.newCachedThreadPool match {
+    case t:ThreadPoolExecutor => t
+    case _ => throw new IllegalStateException
+  }
+
+  def <~[O](producer: => O) = {
+    val future = executor.submit(ProcessEngine.callable(producer))
+    () => future.get
   }
 }
