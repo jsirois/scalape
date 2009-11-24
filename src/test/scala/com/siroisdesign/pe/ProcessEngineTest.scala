@@ -36,10 +36,10 @@ class ProcessEngineTest extends FunSuite {
   test("pe") {
     val pe = new PE
     val result =
-        pe ~> ((prefix:String, suffix:String) => {
+        ((prefix:String, suffix:String) => {
           LOG.info("executing user-supplied function with prefix: " + prefix + " suffix:" + suffix)
           prefix + suffix
-        }) <= {
+        }) ~>: pe <= {
           LOG.info("Retuning joe immediately")
           "joe"
         } <~ {
