@@ -39,10 +39,10 @@ package pe {
      * returned {@link Binder2}.
      */
     def ~>:[I1, I2, O](function:(I1, I2) => O) = {
-      def delayedFunction(input1:delayed[I1]) =
-        (input2:delayed[I2]) =>
-                () => function(input1(), input2())
-      new Binder2[I1, I2, O](delayedFunction)
+      new Binder2[I1, I2, O](
+        (input1:delayed[I1]) =>
+                (input2:delayed[I2]) =>
+                        () => function(input1(), input2()))
     }
 
     private[ProcessEngine] type delayed3[I1, I2, I3, O] = delayed[I1] => delayed2[I2, I3, O]
@@ -57,12 +57,14 @@ package pe {
      * returned {@link Binder3}.
      */
     def ~>:[I1, I2, I3, O](function:(I1, I2, I3) => O) = {
-      def delayedFunction(input1:delayed[I1]) =
-        (input2:delayed[I2]) =>
-                (input3:delayed[I3]) =>
-                        () => function(input1(), input2(), input3())
-      new Binder3[I1, I2, I3, O](delayedFunction)
+      new Binder3[I1, I2, I3, O](
+        (input1:delayed[I1]) =>
+                (input2:delayed[I2]) =>
+                        (input3:delayed[I3]) =>
+                                () => function(input1(), input2(), input3()))
     }
+
+    // TODO(jsirois): ditto...
   }
 
   object ProcessEngine extends Executor {
